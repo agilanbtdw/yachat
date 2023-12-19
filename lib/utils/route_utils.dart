@@ -10,7 +10,8 @@ moveBack(BuildContext context) {
 }
 
 moveToChatPage(Profile receiverProfile, BuildContext context) {
-  Navigator.of(context).push(ChatPage.route(receiverProfile));
+  Navigator.of(context)
+      .push(CreateChatRoomIfItDoesNotExist.route(receiverProfile));
 }
 
 moveToLoginPage(BuildContext context) {

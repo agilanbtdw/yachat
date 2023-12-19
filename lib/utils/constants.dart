@@ -60,6 +60,10 @@ final appTheme = ThemeData.light().copyWith(
   ),
 );
 
+const String PERMISSION_LEVEL_FOLLOWABLE = "followable";
+const String PERMISSION_LEVEL_NOT_ACCESSIBLE = "not_accessible";
+const String PERMISSION_LEVEL_NOT_FOLLOWABLE = "not_followable";
+
 /// Supabase client
 final supabase = Supabase.instance.client;
 

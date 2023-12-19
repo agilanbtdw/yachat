@@ -12,16 +12,42 @@ import 'package:timeago/timeago.dart';
 /// Displays chat bubbles as a ListView and TextField to enter new chat.
 class ChatPage extends StatefulWidget {
   final Profile receiverProfile;
-  const ChatPage({required this.receiverProfile, Key? key}) : super(key: key);
+  final int chatConversationId;
+  final String myUserId;
+  const ChatPage(
+      {required this.receiverProfile,
+      required this.chatConversationId,
+      required this.myUserId,
+      Key? key})
+      : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
 
+  // static Route<void> route(Profile receiverProfile) {
+  //   return MaterialPageRoute(
+  //     builder: (context) => ChatPage(
+  //       receiverProfile: receiverProfile,
+  //       chatConversationId: ,
+  //     ),
+  //   );
+  // }
+}
+
+class CreateChatRoomIfItDoesNotExist extends StatefulWidget {
+  final Profile receiverProfile;
+  final myUserId = supabase.auth.currentUser!.id;
+  CreateChatRoomIfItDoesNotExist({required this.receiverProfile, Key? key})
+      : super(key: key);
+
+  @override
+  State<CreateChatRoomIfItDoesNotExist> createState() =>
+      _CreateChatRoomIfItDoesNotExistState();
+
   static Route<void> route(Profile receiverProfile) {
     return MaterialPageRoute(
-      builder: (context) => ChatPage(
-        receiverProfile: receiverProfile,
-      ),
+      builder: (context) =>
+          CreateChatRoomIfItDoesNotExist(receiverProfile: receiverProfile),
     );
   }
 }
@@ -82,65 +108,164 @@ class _ChatBubble extends StatelessWidget {
 class _ChatPageState extends State<ChatPage> {
   late final Stream<List<Message>> _messagesStream;
   final Map<String, Profile> _profileCache = {};
-  final myUserId = supabase.auth.currentUser!.id;
+  late final myUserId = widget.myUserId;
+  // bool isAllowedToChat = false;
+  // bool isAllowedToFollow = false;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: _buildReceiverProfileDetails()),
-      body: StreamBuilder<List<Message>>(
-        stream: _messagesStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            final messages = snapshot.data!;
-            return Column(
-              children: [
-                Expanded(
-                  child: messages.isEmpty
-                      ? const Center(
-                          child: Text('Start your conversation now :)'),
-                        )
-                      : ListView.builder(
-                          reverse: true,
-                          itemCount: messages.length,
-                          itemBuilder: (context, index) {
-                            final message = messages[index];
+    return StreamBuilder<List<Message>>(
+      stream: _messagesStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final messages = snapshot.data!;
+          return Column(
+            children: [
+              Expanded(
+                child: messages.isEmpty
+                    ? const Center(
+                        child: Text('Start your conversation now :)'),
+                      )
+                    : ListView.builder(
+                        reverse: true,
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
 
-                            /// I know it's not good to include code that is not related
-                            /// to rendering the widget inside build method, but for
-                            /// creating an app quick and dirty, it's fine 😂
-                            _loadProfileCache(message.profileId);
+                          /// I know it's not good to include code that is not related
+                          /// to rendering the widget inside build method, but for
+                          /// creating an app quick and dirty, it's fine 😂
+                          _loadProfileCache(message.profileId);
 
-                            return _ChatBubble(
-                              message: message,
-                              profile: _profileCache[message.profileId],
-                            );
-                          },
-                        ),
-                ),
-                const _MessageBar(),
-              ],
-            );
-          } else {
-            return preloader;
-          }
-        },
-      ),
+                          return _ChatBubble(
+                            message: message,
+                            profile: _profileCache[message.profileId],
+                          );
+                        },
+                      ),
+              ),
+              _MessageBar(
+                senderUserId: myUserId,
+                chatConversationId: widget.chatConversationId,
+              ),
+            ],
+          );
+        } else {
+          return preloader;
+        }
+      },
     );
   }
 
   @override
   void initState() {
+    // _checkIfFollowingTheReceiver();
     _messagesStream = supabase
         .from('messages')
         .stream(primaryKey: ['id'])
+        .eq('chat_room_id', widget.chatConversationId)
         .order('created_at')
         .map((maps) => maps
             .map((map) => Message.fromMap(map: map, myUserId: myUserId))
-            .where((message) =>
-                message.profileId == myUserId ||
-                message.profileId == widget.receiverProfile.id)
             .toList());
+    super.initState();
+  }
+
+  // _checkIfFollowingTheReceiver() async {
+  //   final result = await supabase
+  //       .from("followers")
+  //       .select("is_active")
+  //       .eq("sender", myUserId)
+  //       .eq("receiver", widget.receiverProfile.id)
+  //       .limit(1);
+  //   for (var data in result) {
+  //     if (data['is_active'] == true) {
+  //       setState(() {
+  //         isAllowedToChat = true;
+  //       });
+  //     } else {
+  //       setState(() {
+  //         isAllowedToChat = false;
+  //       });
+  //     }
+  //   }
+  // }
+
+  // _checkIfTheReceiverCanBeFollowed() async {
+  //   if (widget.receiverProfile.followableState == FollowableState.followable) {
+  //     isAllowedToFollow = true;
+  //   }
+  // }
+
+  Future<void> _loadProfileCache(String profileId) async {
+    if (_profileCache[profileId] != null) {
+      return;
+    }
+    final data =
+        await supabase.from('profiles').select().eq('id', profileId).single();
+    final profile = Profile.fromMap(map: data, myUserId: myUserId);
+    setState(() {
+      _profileCache[profileId] = profile;
+    });
+  }
+}
+
+class _CreateChatRoomIfItDoesNotExistState
+    extends State<CreateChatRoomIfItDoesNotExist> {
+  late final int chatConversationId;
+  bool isLoading = true;
+  bool isError = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: AppBar(title: _buildReceiverProfileDetails()),
+        body: isLoading
+            ? preloader
+            : isError
+                ? const Center(child: Text("Something went wrong..."))
+                : ChatPage(
+                    receiverProfile: widget.receiverProfile,
+                    chatConversationId: chatConversationId,
+                    myUserId: widget.myUserId,
+                  ));
+  }
+
+  @override
+  void initState() {
+    _doesAConversationAlreadyExists().then((conversationId) {
+      if (conversationId == null) {
+        _insertANewConversationBetweenUsers(
+                widget.myUserId, widget.receiverProfile.id)
+            .then((newConversationId) {
+          setState(() {
+            chatConversationId = newConversationId;
+            isLoading = false;
+            isError = false;
+          });
+        }).onError((error, stackTrace) {
+          print(error);
+          print(stackTrace);
+          setState(() {
+            isLoading = false;
+            isError = true;
+          });
+        });
+      } else {
+        setState(() {
+          chatConversationId = conversationId;
+          isLoading = false;
+          isError = false;
+        });
+      }
+    }).onError((error, stackTrace) {
+      print(error);
+      print(stackTrace);
+      setState(() {
+        isLoading = false;
+        isError = true;
+      });
+    });
     super.initState();
   }
 
@@ -156,22 +281,35 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Future<void> _loadProfileCache(String profileId) async {
-    if (_profileCache[profileId] != null) {
-      return;
+  Future<int?> _doesAConversationAlreadyExists() async {
+    final result = await supabase
+        .from("chat_room")
+        .select('id')
+        .or('user1_id.eq.${widget.myUserId},user2_id.eq.${widget.myUserId}')
+        .or('user2_id.eq.${widget.receiverProfile.id},user1_id.eq.${widget.receiverProfile.id}')
+        .limit(1);
+    if (result.isNotEmpty) {
+      return result[0]['id'];
     }
-    final data =
-        await supabase.from('profiles').select().eq('id', profileId).single();
-    final profile = Profile.fromMap(map: data, myUserId: myUserId);
-    setState(() {
-      _profileCache[profileId] = profile;
-    });
+    return null;
+  }
+
+  Future<int> _insertANewConversationBetweenUsers(
+      String senderUserId, String receiverUserId) async {
+    final result = await supabase.from("chat_room").insert(
+        {"user1_id": senderUserId, "user2_id": receiverUserId}).select('id');
+    return result[0]['id'];
   }
 }
 
 /// Set of widget that contains TextField and Button to submit message
 class _MessageBar extends StatefulWidget {
+  final String senderUserId;
+  final int chatConversationId;
+
   const _MessageBar({
+    required this.senderUserId,
+    required this.chatConversationId,
     Key? key,
   }) : super(key: key);
 
@@ -230,15 +368,15 @@ class _MessageBarState extends State<_MessageBar> {
 
   void _submitMessage() async {
     final text = _textController.text;
-    final myUserId = supabase.auth.currentUser!.id;
     if (text.isEmpty) {
       return;
     }
     _textController.clear();
     try {
       await supabase.from('messages').insert({
-        'profile_id': myUserId,
+        'profile_id': widget.senderUserId,
         'content': text,
+        'chat_room_id': widget.chatConversationId
       });
     } on PostgrestException catch (error) {
       context.showErrorSnackBar(message: error.message);
