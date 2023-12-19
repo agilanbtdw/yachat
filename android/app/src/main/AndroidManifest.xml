@@ -1,8 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.supabase_flutter">
+    <uses-permission android:name="android.permission.INTERNET"/>
    <application
-        android:label="Chat"
+        android:label="YAChat"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -49,5 +51,5 @@
             android:value="2" />
     </application>
     
-    <uses-permission android:name="android.permission.INTERNET"/>
+
 </manifest>

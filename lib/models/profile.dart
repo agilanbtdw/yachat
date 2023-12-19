@@ -1,10 +1,4 @@
 class Profile {
-  Profile({
-    required this.id,
-    required this.username,
-    required this.createdAt,
-  });
-
   /// User ID of the profile
   final String id;
 
@@ -14,8 +8,18 @@ class Profile {
   /// Date and time when the profile was created
   final DateTime createdAt;
 
-  Profile.fromMap(Map<String, dynamic> map)
+  final bool isMine;
+
+  Profile({
+    required this.id,
+    required this.username,
+    required this.createdAt,
+    required this.isMine,
+  });
+
+  Profile.fromMap({required Map<String, dynamic> map, required String myUserId})
       : id = map['id'],
         username = map['username'],
-        createdAt = DateTime.parse(map['created_at']);
+        createdAt = DateTime.parse(map['created_at']),
+        isMine = myUserId == map['id'];
 }

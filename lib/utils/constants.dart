@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Supabase client
-final supabase = Supabase.instance.client;
-
-/// Simple preloader inside a Center widget
-const preloader =
-    Center(child: CircularProgressIndicator(color: Colors.orange));
+/// Some padding for all the forms to use
+const formPadding = EdgeInsets.symmetric(vertical: 20, horizontal: 16);
 
 /// Simple sized box to space out form elements
 const formSpacer = SizedBox(width: 16, height: 16);
 
-/// Some padding for all the forms to use
-const formPadding = EdgeInsets.symmetric(vertical: 20, horizontal: 16);
+/// Simple preloader inside a Center widget
+const preloader =
+    Center(child: CircularProgressIndicator(color: Colors.orange));
 
 /// Error message to display the user when unexpected error occurs.
 const unexpectedErrorMessage = 'Unexpected error occured.';
@@ -63,8 +60,30 @@ final appTheme = ThemeData.light().copyWith(
   ),
 );
 
+/// Supabase client
+final supabase = Supabase.instance.client;
+
+CircleAvatar getCircleAvatarBasedOnText(String text) {
+  String textForAvatar = "";
+  if (text.isEmpty) {
+    textForAvatar = "UN";
+  } else if (text.length == 1) {
+    textForAvatar = text[0];
+  } else {
+    textForAvatar = text.substring(0, 2);
+  }
+  return CircleAvatar(
+    child: Text(textForAvatar),
+  );
+}
+
 /// Set of extension methods to easily display a snackbar
 extension ShowSnackBar on BuildContext {
+  /// Displays a red snackbar indicating error
+  void showErrorSnackBar({required String message}) {
+    showSnackBar(message: message, backgroundColor: Colors.red);
+  }
+
   /// Displays a basic snackbar
   void showSnackBar({
     required String message,
@@ -74,10 +93,5 @@ extension ShowSnackBar on BuildContext {
       content: Text(message),
       backgroundColor: backgroundColor,
     ));
-  }
-
-  /// Displays a red snackbar indicating error
-  void showErrorSnackBar({required String message}) {
-    showSnackBar(message: message, backgroundColor: Colors.red);
   }
 }

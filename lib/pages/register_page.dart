@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:my_chat_app/pages/chat_page.dart';
-import 'package:my_chat_app/pages/login_page.dart';
 import 'package:my_chat_app/utils/constants.dart';
+import 'package:my_chat_app/utils/route_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegisterPage extends StatefulWidget {
+  final bool isRegistering;
+
   const RegisterPage({Key? key, required this.isRegistering}) : super(key: key);
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
 
   static Route<void> route({bool isRegistering = false}) {
     return MaterialPageRoute(
       builder: (context) => RegisterPage(isRegistering: isRegistering),
     );
   }
-
-  final bool isRegistering;
-
-  @override
-  State<RegisterPage> createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
@@ -27,26 +26,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
-
-  Future<void> _signUp() async {
-    final isValid = _formKey.currentState!.validate();
-    if (!isValid) {
-      return;
-    }
-    final email = _emailController.text;
-    final password = _passwordController.text;
-    final username = _usernameController.text;
-    try {
-      await supabase.auth.signUp(
-          email: email, password: password, data: {'username': username});
-      Navigator.of(context)
-          .pushAndRemoveUntil(ChatPage.route(), (route) => false);
-    } on AuthException catch (error) {
-      context.showErrorSnackBar(message: error.message);
-    } catch (error) {
-      context.showErrorSnackBar(message: unexpectedErrorMessage);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +93,7 @@ class _RegisterPageState extends State<RegisterPage> {
             formSpacer,
             TextButton(
               onPressed: () {
-                Navigator.of(context).push(LoginPage.route());
+                moveToLoginPage(context);
               },
               child: const Text('I already have an account'),
             )
@@ -122,5 +101,24 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _signUp() async {
+    final isValid = _formKey.currentState!.validate();
+    if (!isValid) {
+      return;
+    }
+    final email = _emailController.text;
+    final password = _passwordController.text;
+    final username = _usernameController.text;
+    try {
+      await supabase.auth.signUp(
+          email: email, password: password, data: {'username': username});
+      moveUntilToUserListPage(context);
+    } on AuthException catch (error) {
+      context.showErrorSnackBar(message: error.message);
+    } catch (error) {
+      context.showErrorSnackBar(message: unexpectedErrorMessage);
+    }
   }
 }

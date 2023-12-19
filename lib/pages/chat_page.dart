@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
 import 'package:my_chat_app/models/message.dart';
 import 'package:my_chat_app/models/profile.dart';
 import 'package:my_chat_app/utils/constants.dart';
@@ -12,51 +11,83 @@ import 'package:timeago/timeago.dart';
 ///
 /// Displays chat bubbles as a ListView and TextField to enter new chat.
 class ChatPage extends StatefulWidget {
-  const ChatPage({Key? key}) : super(key: key);
-
-  static Route<void> route() {
-    return MaterialPageRoute(
-      builder: (context) => const ChatPage(),
-    );
-  }
+  final Profile receiverProfile;
+  const ChatPage({required this.receiverProfile, Key? key}) : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
+
+  static Route<void> route(Profile receiverProfile) {
+    return MaterialPageRoute(
+      builder: (context) => ChatPage(
+        receiverProfile: receiverProfile,
+      ),
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  final Message message;
+
+  final Profile? profile;
+  const _ChatBubble({
+    Key? key,
+    required this.message,
+    required this.profile,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    List<Widget> chatContents = [
+      if (!message.isMine)
+        CircleAvatar(
+          child: profile == null
+              ? preloader
+              : Text(profile!.username.substring(0, 2)),
+        ),
+      const SizedBox(width: 12),
+      Flexible(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            vertical: 8,
+            horizontal: 12,
+          ),
+          decoration: BoxDecoration(
+            color: message.isMine
+                ? Theme.of(context).primaryColor
+                : Colors.grey[300],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(message.content),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Text(format(message.createdAt, locale: 'en_short')),
+      const SizedBox(width: 60),
+    ];
+    if (message.isMine) {
+      chatContents = chatContents.reversed.toList();
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
+      child: Row(
+        mainAxisAlignment:
+            message.isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: chatContents,
+      ),
+    );
+  }
 }
 
 class _ChatPageState extends State<ChatPage> {
   late final Stream<List<Message>> _messagesStream;
   final Map<String, Profile> _profileCache = {};
-
-  @override
-  void initState() {
-    final myUserId = supabase.auth.currentUser!.id;
-    _messagesStream = supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .order('created_at')
-        .map((maps) => maps
-            .map((map) => Message.fromMap(map: map, myUserId: myUserId))
-            .toList());
-    super.initState();
-  }
-
-  Future<void> _loadProfileCache(String profileId) async {
-    if (_profileCache[profileId] != null) {
-      return;
-    }
-    final data =
-        await supabase.from('profiles').select().eq('id', profileId).single();
-    final profile = Profile.fromMap(data);
-    setState(() {
-      _profileCache[profileId] = profile;
-    });
-  }
+  final myUserId = supabase.auth.currentUser!.id;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
+      appBar: AppBar(title: _buildReceiverProfileDetails()),
       body: StreamBuilder<List<Message>>(
         stream: _messagesStream,
         builder: (context, snapshot) {
@@ -96,6 +127,45 @@ class _ChatPageState extends State<ChatPage> {
         },
       ),
     );
+  }
+
+  @override
+  void initState() {
+    _messagesStream = supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at')
+        .map((maps) => maps
+            .map((map) => Message.fromMap(map: map, myUserId: myUserId))
+            .where((message) =>
+                message.profileId == myUserId ||
+                message.profileId == widget.receiverProfile.id)
+            .toList());
+    super.initState();
+  }
+
+  Widget _buildReceiverProfileDetails() {
+    return Row(
+      children: [
+        getCircleAvatarBasedOnText(widget.receiverProfile.username),
+        const SizedBox(width: 10.0),
+        Text(
+          widget.receiverProfile.username,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _loadProfileCache(String profileId) async {
+    if (_profileCache[profileId] != null) {
+      return;
+    }
+    final data =
+        await supabase.from('profiles').select().eq('id', profileId).single();
+    final profile = Profile.fromMap(map: data, myUserId: myUserId);
+    setState(() {
+      _profileCache[profileId] = profile;
+    });
   }
 }
 
@@ -147,15 +217,15 @@ class _MessageBarState extends State<_MessageBar> {
   }
 
   @override
-  void initState() {
-    _textController = TextEditingController();
-    super.initState();
-  }
-
-  @override
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    _textController = TextEditingController();
+    super.initState();
   }
 
   void _submitMessage() async {
@@ -175,58 +245,5 @@ class _MessageBarState extends State<_MessageBar> {
     } catch (_) {
       context.showErrorSnackBar(message: unexpectedErrorMessage);
     }
-  }
-}
-
-class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({
-    Key? key,
-    required this.message,
-    required this.profile,
-  }) : super(key: key);
-
-  final Message message;
-  final Profile? profile;
-
-  @override
-  Widget build(BuildContext context) {
-    List<Widget> chatContents = [
-      if (!message.isMine)
-        CircleAvatar(
-          child: profile == null
-              ? preloader
-              : Text(profile!.username.substring(0, 2)),
-        ),
-      const SizedBox(width: 12),
-      Flexible(
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: 8,
-            horizontal: 12,
-          ),
-          decoration: BoxDecoration(
-            color: message.isMine
-                ? Theme.of(context).primaryColor
-                : Colors.grey[300],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(message.content),
-        ),
-      ),
-      const SizedBox(width: 12),
-      Text(format(message.createdAt, locale: 'en_short')),
-      const SizedBox(width: 60),
-    ];
-    if (message.isMine) {
-      chatContents = chatContents.reversed.toList();
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
-      child: Row(
-        mainAxisAlignment:
-            message.isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: chatContents,
-      ),
-    );
   }
 }
